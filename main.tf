@@ -1,3 +1,15 @@
+data "aws_availability_zones" "this" {
+    state = "available"
+}
+
+data "aws_region" "this" {}
+
+data "aws_caller_identity" "this" {}
+
+locals {
+    available_az_count = length(data.aws_availability_zones.this.names)
+}
+
 resource "aws_vpc" "this" {
     cidr_block = var.ipv4_cidr
     assign_generated_ipv6_cidr_block = true
@@ -16,7 +28,7 @@ resource "aws_default_security_group" "this" {
         self = true
         from_port = 0
         to_port = 0
-        cidr_blocks = local.allowed_ingress_cidr_blocks
+        cidr_blocks = [var.ipv4_cidr]
     }
     egress {
         from_port = 0
@@ -42,7 +54,8 @@ resource "aws_vpc_peering_connection_accepter" "this" {
 
 
 module "bucket" {
-    source = "github.com/ptonini/terraform-aws-s3-bucket?ref=v1"
+    source = "ptonini/s3-bucket/aws"
+    version = "~> 1.0.0"
     name = var.flow_logs_bucket_name
     bucket_policy_statements = [
         {
@@ -84,9 +97,6 @@ module "bucket" {
             }
         }
     ]
-    providers = {
-        aws = aws
-    }
 }
 
 resource "aws_flow_log" "this" {
