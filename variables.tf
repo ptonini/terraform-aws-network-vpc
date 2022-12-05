@@ -6,6 +6,12 @@ variable "ipv4_cidr" {}
 
 variable "subnet_newbits" {}
 
+variable "region" {}
+
+variable "zone_names" {
+  type = list(string)
+}
+
 variable "subnet_tags" {
   default = {}
 }
@@ -46,8 +52,6 @@ variable "vpn_connections" {
   default = {}
 }
 
-variable "region" {
-  default = "us-east-1"
-}
+
 
 variable "account_id" {}
