@@ -1,27 +1,19 @@
 variable "name" {}
 
-variable "flow_logs_bucket_name" {}
+variable "account_id" {}
+
+variable "region" {}
+
+variable "zones" {
+  type = list(string)
+}
 
 variable "ipv4_cidr" {}
 
 variable "subnet_newbits" {}
 
-variable "region" {}
-
-variable "zone_names" {
-  type = list(string)
-}
-
-variable "subnet_tags" {
-  default = {}
-}
-
-variable "public" {
-  default = true
-}
-
-variable "private" {
-  default = true
+variable "private_subnets" {
+  default = false
 }
 
 variable "peering_requests" {
@@ -29,7 +21,7 @@ variable "peering_requests" {
   type = map(object({
     account_id = string
     vpc = object({
-      id = string
+      id         = string
       cidr_block = string
     })
   }))
@@ -42,16 +34,10 @@ variable "peering_acceptors" {
       id = string
     })
     vpc = object({
-      id = string
+      id         = string
       cidr_block = string
     })
   }))
 }
 
-variable "vpn_connections" {
-  default = {}
-}
-
-
-
-variable "account_id" {}
+variable "flow_logs_bucket_name" {}

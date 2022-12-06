@@ -3,11 +3,11 @@ output "this" {
 }
 
 output "public_subnets" {
-  value = aws_subnet.public
+  value = [for s in module.public_subnets : s.this]
 }
 
 output "private_subnets" {
-  value = aws_subnet.private
+  value = [for s in module.private_subnets : s.this]
 }
 
 output "peering_requests" {
