@@ -83,8 +83,8 @@ resource "aws_main_route_table_association" "public" {
 }
 
 module "public_subnets" {
-  source         = "ptonini/networking-subnet/aws"
-  version        = "~> 1.0.0"
+  source                  = "ptonini/networking-subnet/aws"
+  version                 = "~> 1.0.0"
   count                   = local.zone_count
   name                    = "${var.name}-public_${count.index}"
   vpc_id                  = aws_vpc.this.id
@@ -95,16 +95,16 @@ module "public_subnets" {
 
 module "nat_gateway" {
   source         = "ptonini/networking-nat-gateway/aws"
-  version        = "~> 1.0.0"
-  count = var.private_subnets ? 1 : 0
+  version        = "~> 1.0.1"
+  count          = var.private_subnets ? 1 : 0
   vpc_id         = aws_vpc.this.id
   subnet_id      = module.public_subnets[0].this.id
   peering_routes = local.peering_routes
 }
 
 module "private_subnets" {
-  source         = "ptonini/networking-subnet/aws"
-  version        = "~> 1.0.0"
+  source            = "ptonini/networking-subnet/aws"
+  version           = "~> 1.0.0"
   count             = var.private_subnets ? local.zone_count : 0
   name              = "${var.name}-private_${count.index}"
   vpc_id            = aws_vpc.this.id
