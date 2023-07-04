@@ -40,4 +40,6 @@ variable "peering_acceptors" {
   }))
 }
 
-variable "flow_logs_bucket_name" {}
+variable "flow_logs_bucket_name" {
+  default = null
+}

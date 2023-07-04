@@ -119,6 +119,7 @@ module "private_subnets" {
 module "bucket" {
   source  = "ptonini/s3-bucket/aws"
   version = "~> 1.0.0"
+  count   = var.flow_logs_bucket_name == null ? 0 : 1
   name    = var.flow_logs_bucket_name
   bucket_policy_statements = [
     {
@@ -163,7 +164,8 @@ module "bucket" {
 }
 
 resource "aws_flow_log" "this" {
-  log_destination      = module.bucket.this.arn
+  count                = var.flow_logs_bucket_name == null ? 0 : 1
+  log_destination      = module.bucket.this[0].arn
   log_destination_type = "s3"
   traffic_type         = "ALL"
   vpc_id               = aws_vpc.this.id
