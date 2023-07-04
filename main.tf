@@ -165,7 +165,7 @@ module "bucket" {
 
 resource "aws_flow_log" "this" {
   count                = var.flow_logs_bucket_name == null ? 0 : 1
-  log_destination      = module.bucket.this[0].arn
+  log_destination      = module.bucket[0].this.arn
   log_destination_type = "s3"
   traffic_type         = "ALL"
   vpc_id               = aws_vpc.this.id
