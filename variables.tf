@@ -16,6 +16,14 @@ variable "private_subnets" {
   default = false
 }
 
+variable "network_interface_routes" {
+  default = {}
+  type = map(object({
+    cidr_block = string
+    network_interface_id = string
+  }))
+}
+
 variable "peering_requests" {
   default = {}
   type = map(object({

@@ -69,6 +69,13 @@ resource "aws_route_table" "main" {
     gateway_id      = aws_internet_gateway.this.id
   }
   dynamic "route" {
+    for_each = var.network_interface_routes
+    content {
+      cidr_block           = route.value.cidr_block
+      network_interface_id = route.value.network_interface_id
+    }
+  }
+  dynamic "route" {
     for_each = local.peering_routes
     content {
       cidr_block                = route.value["cidr_block"]
@@ -86,7 +93,7 @@ module "public_subnets" {
   source                  = "ptonini/networking-subnet/aws"
   version                 = "~> 1.0.0"
   count                   = local.zone_count
-  name                    = "${var.name}-public_${count.index}"
+  name                    = "${var.name}-public${format("%04.0f", count.index + 1)}"
   vpc_id                  = aws_vpc.this.id
   cidr_block              = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index)
   availability_zone       = var.zones[count.index]
@@ -106,7 +113,7 @@ module "private_subnets" {
   source            = "ptonini/networking-subnet/aws"
   version           = "~> 1.0.0"
   count             = var.private_subnets ? local.zone_count : 0
-  name              = "${var.name}-private_${count.index}"
+  name              = "${var.name}-private${format("%04.0f", count.index + 1)}"
   vpc_id            = aws_vpc.this.id
   cidr_block        = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index + local.zone_count)
   availability_zone = var.zones[count.index]
