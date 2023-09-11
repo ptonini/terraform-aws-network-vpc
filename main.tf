@@ -23,6 +23,12 @@ resource "aws_vpc" "this" {
   tags = {
     Name = var.name
   }
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
+  }
 }
 
 resource "aws_default_security_group" "this" {
@@ -41,6 +47,12 @@ resource "aws_default_security_group" "this" {
     cidr_blocks      = ["0.0.0.0/0"]
     ipv6_cidr_blocks = ["::/0"]
   }
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
+  }
 }
 
 resource "aws_vpc_peering_connection" "this" {
@@ -58,6 +70,12 @@ resource "aws_vpc_peering_connection_accepter" "this" {
 
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
+  }
 }
 
 resource "aws_route_table" "main" {
@@ -83,6 +101,12 @@ resource "aws_route_table" "main" {
       cidr_block                = route.value["cidr_block"]
       vpc_peering_connection_id = route.value["connection_id"]
     }
+  }
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
   }
 }
 
