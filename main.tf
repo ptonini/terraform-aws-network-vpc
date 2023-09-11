@@ -4,11 +4,13 @@ locals {
     { for k, v in var.peering_requests : "${k}_request" => {
       cidr_block    = v.vpc.cidr_block
       connection_id = aws_vpc_peering_connection.this[k].id
-    } },
+      }
+    },
     { for k, v in var.peering_acceptors : "${k}_acceptor" => {
       cidr_block    = v.vpc.cidr_block
       connection_id = v.peering_request.id
-    } }
+      }
+    }
   )
 }
 
@@ -125,7 +127,7 @@ module "private_subnets" {
 
 module "bucket" {
   source  = "ptonini/s3-bucket/aws"
-  version = "~> 1.0.0"
+  version = "~> 1.3.0"
   count   = var.flow_logs_bucket_name == null ? 0 : 1
   name    = var.flow_logs_bucket_name
   bucket_policy_statements = [

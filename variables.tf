@@ -19,7 +19,7 @@ variable "private_subnets" {
 variable "network_interface_routes" {
   default = {}
   type = map(object({
-    cidr_block = string
+    cidr_block           = string
     network_interface_id = string
   }))
 }
