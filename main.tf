@@ -151,7 +151,7 @@ module "private_subnets" {
 
 module "bucket" {
   source  = "ptonini/s3-bucket/aws"
-  version = "~> 1.3.0"
+  version = "~> 2.0.0"
   count   = var.flow_logs_bucket_name == null ? 0 : 1
   name    = var.flow_logs_bucket_name
   bucket_policy_statements = [
