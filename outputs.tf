@@ -2,6 +2,10 @@ output "this" {
   value = aws_vpc.this
 }
 
+output "default_security_group_id" {
+  value = aws_default_security_group.this.id
+}
+
 output "public_subnets" {
   value = [for s in module.public_subnets : s.this]
 }
