@@ -33,19 +33,31 @@ resource "aws_vpc" "this" {
 
 resource "aws_default_security_group" "this" {
   vpc_id = aws_vpc.this.id
-  ingress {
-    protocol    = -1
-    self        = true
-    from_port   = 0
-    to_port     = 0
-    cidr_blocks = [var.ipv4_cidr]
+  dynamic "ingress" {
+    for_each = var.default_security_group.ingress_rules
+    content {
+      from_port        = ingress.value.from_port
+      to_port          = coalesce(ingress.value.to_port, ingress.value.from_port)
+      protocol         = ingress.value.protocol
+      cidr_blocks      = ingress.value.cidr_blocks
+      ipv6_cidr_blocks = ingress.value.ipv6_cidr_blocks
+      prefix_list_ids  = ingress.value.prefix_list_ids
+      security_groups  = ingress.value.security_groups
+      self             = ingress.value.self
+    }
   }
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
+  dynamic "egress" {
+    for_each = var.default_security_group.egress_rules
+    content {
+      from_port        = egress.value.from_port
+      to_port          = coalesce(egress.value.to_port, egress.value.from_port)
+      protocol         = egress.value.protocol
+      cidr_blocks      = egress.value.cidr_blocks
+      ipv6_cidr_blocks = egress.value.ipv6_cidr_blocks
+      prefix_list_ids  = egress.value.prefix_list_ids
+      security_groups  = egress.value.security_groups
+      self             = egress.value.self
+    }
   }
   lifecycle {
     ignore_changes = [
@@ -55,28 +67,31 @@ resource "aws_default_security_group" "this" {
   }
 }
 
-resource "aws_vpc_peering_connection" "this" {
-  for_each      = var.peering_requests
-  peer_owner_id = each.value.account_id
-  peer_vpc_id   = each.value.vpc.id
-  vpc_id        = aws_vpc.this.id
+# Subnets
+
+module "public_subnets" {
+  source                  = "ptonini/networking-subnet/aws"
+  version                 = "~> 1.0.0"
+  count                   = local.zone_count
+  name                    = "${var.name}-public${format("%04.0f", count.index + 1)}"
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index)
+  availability_zone       = var.zones[count.index]
+  map_public_ip_on_launch = true
 }
 
-resource "aws_vpc_peering_connection_accepter" "this" {
-  for_each                  = var.peering_acceptors
-  vpc_peering_connection_id = each.value.peering_request.id
-  auto_accept               = true
+module "private_subnets" {
+  source            = "ptonini/networking-subnet/aws"
+  version           = "~> 1.0.0"
+  count             = var.private_subnets ? local.zone_count : 0
+  name              = "${var.name}-private${format("%04.0f", count.index + 1)}"
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index + local.zone_count)
+  availability_zone = var.zones[count.index]
+  route_table_ids   = [module.nat_gateway[0].route_table_id]
 }
 
-resource "aws_internet_gateway" "this" {
-  vpc_id = aws_vpc.this.id
-  lifecycle {
-    ignore_changes = [
-      tags,
-      tags_all
-    ]
-  }
-}
+# Routing
 
 resource "aws_route_table" "main" {
   vpc_id = aws_vpc.this.id
@@ -115,15 +130,16 @@ resource "aws_main_route_table_association" "public" {
   route_table_id = aws_route_table.main.id
 }
 
-module "public_subnets" {
-  source                  = "ptonini/networking-subnet/aws"
-  version                 = "~> 1.0.0"
-  count                   = local.zone_count
-  name                    = "${var.name}-public${format("%04.0f", count.index + 1)}"
-  vpc_id                  = aws_vpc.this.id
-  cidr_block              = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index)
-  availability_zone       = var.zones[count.index]
-  map_public_ip_on_launch = true
+# Internet gateways
+
+resource "aws_internet_gateway" "this" {
+  vpc_id = aws_vpc.this.id
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
+  }
 }
 
 module "nat_gateway" {
@@ -135,17 +151,31 @@ module "nat_gateway" {
   peering_routes = local.peering_routes
 }
 
-module "private_subnets" {
-  source            = "ptonini/networking-subnet/aws"
-  version           = "~> 1.0.0"
-  count             = var.private_subnets ? local.zone_count : 0
-  name              = "${var.name}-private${format("%04.0f", count.index + 1)}"
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index + local.zone_count)
-  availability_zone = var.zones[count.index]
-  route_table_ids   = [module.nat_gateway[0].route_table_id]
+# Peering connections
+
+resource "aws_vpc_peering_connection" "this" {
+  for_each      = var.peering_requests
+  peer_owner_id = each.value.account_id
+  peer_vpc_id   = each.value.vpc.id
+  vpc_id        = aws_vpc.this.id
 }
 
+resource "aws_vpc_peering_connection_accepter" "this" {
+  for_each                  = var.peering_acceptors
+  vpc_peering_connection_id = each.value.peering_request.id
+  auto_accept               = true
+}
+
+# VPC Endpoints
+
+resource "aws_vpc_endpoint" "this" {
+  for_each          = var.vpc_endpoints
+  vpc_id            = aws_vpc.this.id
+  service_name      = each.value.service_name
+  vpc_endpoint_type = each.value.type
+  subnet_ids        = var.private_subnets ? [for s in module.private_subnets : s.this.id] : [for s in module.public_subnets : s.this.id]
+
+}
 
 # Network flow logs
 
