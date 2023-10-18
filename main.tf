@@ -143,12 +143,13 @@ resource "aws_internet_gateway" "this" {
 }
 
 module "nat_gateway" {
-  source         = "ptonini/networking-nat-gateway/aws"
-  version        = "~> 1.0.1"
-  count          = var.private_subnets ? 1 : 0
-  vpc_id         = aws_vpc.this.id
-  subnet_id      = module.public_subnets[0].this.id
-  peering_routes = local.peering_routes
+  source                   = "ptonini/networking-nat-gateway/aws"
+  version                  = "~> 1.1.0"
+  count                    = var.private_subnets ? 1 : 0
+  vpc_id                   = aws_vpc.this.id
+  subnet_id                = module.public_subnets[0].this.id
+  peering_routes           = local.peering_routes
+  network_interface_routes = var.network_interface_routes
 }
 
 # Peering connections
