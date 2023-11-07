@@ -25,7 +25,9 @@ resource "aws_vpc" "this" {
   }
   lifecycle {
     ignore_changes = [
-      tags,
+      tags.business_unit,
+      tags.product,
+      tags.env,
       tags_all
     ]
   }
@@ -61,7 +63,9 @@ resource "aws_default_security_group" "this" {
   }
   lifecycle {
     ignore_changes = [
-      tags,
+      tags.business_unit,
+      tags.product,
+      tags.env,
       tags_all
     ]
   }
@@ -111,6 +115,13 @@ resource "aws_route_table" "main" {
     }
   }
   dynamic "route" {
+    for_each = var.gateway_routes
+    content {
+      cidr_block = route.value.cidr_block
+      gateway_id = route.value.gateway_id
+    }
+  }
+  dynamic "route" {
     for_each = local.peering_routes
     content {
       cidr_block                = route.value["cidr_block"]
@@ -119,7 +130,9 @@ resource "aws_route_table" "main" {
   }
   lifecycle {
     ignore_changes = [
-      tags,
+      tags.business_unit,
+      tags.product,
+      tags.env,
       tags_all
     ]
   }
@@ -136,20 +149,21 @@ resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
   lifecycle {
     ignore_changes = [
-      tags,
+      tags.business_unit,
+      tags.product,
+      tags.env,
       tags_all
     ]
   }
 }
 
 module "nat_gateway" {
-  source                   = "ptonini/networking-nat-gateway/aws"
-  version                  = "~> 1.1.0"
-  count                    = var.private_subnets ? 1 : 0
-  vpc_id                   = aws_vpc.this.id
-  subnet_id                = module.public_subnets[0].this.id
-  peering_routes           = local.peering_routes
-  network_interface_routes = var.network_interface_routes
+  source         = "ptonini/networking-nat-gateway/aws"
+  version        = "~> 1.1.0"
+  count          = var.private_subnets ? 1 : 0
+  vpc_id         = aws_vpc.this.id
+  subnet_id      = module.public_subnets[0].this.id
+  peering_routes = local.peering_routes
 }
 
 # Peering connections

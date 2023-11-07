@@ -27,7 +27,7 @@ variable "default_security_group" {
       prefix_list_ids  = optional(set(string))
       security_groups  = optional(set(string))
       self             = optional(bool)
-    })), { self = { protocol = -1, self = true, from_port = 0, to_port = 0, } })
+    })), { self = { protocol = -1, from_port = 0, self = true } })
     egress_rules = optional(map(object({
       from_port        = number
       to_port          = optional(number)
@@ -37,7 +37,7 @@ variable "default_security_group" {
       prefix_list_ids  = optional(set(string))
       security_groups  = optional(set(string))
       self             = optional(bool)
-    })), { all = { protocol = -1, from_port = 0, to_port = 0, cidr_blocks = ["0.0.0.0/0"], ipv6_cidr_blocks = ["::/0"] } })
+    })), { all = { protocol = -1, from_port = 0, cidr_blocks = ["0.0.0.0/0"], ipv6_cidr_blocks = ["::/0"] } })
   })
   default = {}
 }
@@ -47,6 +47,14 @@ variable "network_interface_routes" {
   type = map(object({
     cidr_block           = string
     network_interface_id = string
+  }))
+}
+
+variable "gateway_routes" {
+  default = {}
+  type = map(object({
+    cidr_block = string
+    gateway_id = string
   }))
 }
 
