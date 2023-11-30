@@ -1,18 +1,18 @@
 variable "name" {}
 
-variable "account_id" {}
-
-variable "region" {}
+variable "ipv4_cidr" {}
 
 variable "zones" {
   type = list(string)
 }
 
-variable "ipv4_cidr" {}
-
 variable "subnet_newbits" {}
 
 variable "private_subnets" {
+  default = false
+}
+
+variable "isolated_subnets" {
   default = false
 }
 
@@ -90,6 +90,17 @@ variable "vpc_endpoints" {
   default = {}
 }
 
-variable "flow_logs_bucket_name" {
+variable "flow_logs" {
+  type = object({
+    bucket_name          = optional(string)
+    bucket_kms_key_id    = optional(string)
+    log_destination      = optional(string)
+    log_destination_type = optional(string, "s3")
+    traffic_type         = optional(string, "ALL")
+    destination_options = optional(object({
+      file_format        = optional(string, "parquet")
+      per_hour_partition = optional(bool, true)
+    }), {})
+  })
   default = null
 }

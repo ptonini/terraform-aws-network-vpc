@@ -4,15 +4,17 @@ locals {
     { for k, v in var.peering_requests : "${k}_request" => {
       cidr_block    = v.vpc.cidr_block
       connection_id = aws_vpc_peering_connection.this[k].id
-      }
-    },
+    } },
     { for k, v in var.peering_acceptors : "${k}_acceptor" => {
       cidr_block    = v.vpc.cidr_block
       connection_id = v.peering_request.id
-      }
-    }
+    } }
   )
 }
+
+data "aws_caller_identity" "current" {}
+
+data "aws_region" "current" {}
 
 resource "aws_vpc" "this" {
   cidr_block                       = var.ipv4_cidr
@@ -25,9 +27,9 @@ resource "aws_vpc" "this" {
   }
   lifecycle {
     ignore_changes = [
-      tags.business_unit,
-      tags.product,
-      tags.env,
+      tags["business_unit"],
+      tags["product"],
+      tags["env"],
       tags_all
     ]
   }
@@ -63,12 +65,99 @@ resource "aws_default_security_group" "this" {
   }
   lifecycle {
     ignore_changes = [
-      tags.business_unit,
-      tags.product,
-      tags.env,
+      tags["business_unit"],
+      tags["product"],
+      tags["env"],
       tags_all
     ]
   }
+}
+
+# Route tables
+
+resource "aws_route_table" "main" {
+  vpc_id = aws_vpc.this.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.this.id
+  }
+
+  route {
+    ipv6_cidr_block = "::/0"
+    gateway_id      = aws_internet_gateway.this.id
+  }
+
+  dynamic "route" {
+    for_each = var.network_interface_routes
+    content {
+      cidr_block           = route.value.cidr_block
+      network_interface_id = route.value.network_interface_id
+    }
+  }
+
+  dynamic "route" {
+    for_each = var.gateway_routes
+    content {
+      cidr_block = route.value.cidr_block
+      gateway_id = route.value.gateway_id
+    }
+  }
+
+  dynamic "route" {
+    for_each = local.peering_routes
+    content {
+      cidr_block                = route.value["cidr_block"]
+      vpc_peering_connection_id = route.value["connection_id"]
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      tags["business_unit"],
+      tags["product"],
+      tags["env"],
+      tags_all
+    ]
+  }
+}
+
+resource "aws_main_route_table_association" "public" {
+  vpc_id         = aws_vpc.this.id
+  route_table_id = aws_route_table.main.id
+}
+
+resource "aws_route_table" "isolated" {
+  count  = var.isolated_subnets ? 1 : 0
+  vpc_id = aws_vpc.this.id
+
+  route {
+    cidr_block = var.ipv4_cidr
+    gateway_id = "local"
+  }
+}
+
+# Gateways
+
+resource "aws_internet_gateway" "this" {
+  vpc_id = aws_vpc.this.id
+  lifecycle {
+    ignore_changes = [
+      tags["business_unit"],
+      tags["product"],
+      tags["env"],
+      tags_all
+    ]
+  }
+}
+
+module "nat_gateway" {
+  source         = "ptonini/networking-nat-gateway/aws"
+  version        = "~> 1.1.0"
+  count          = var.private_subnets ? 1 : 0
+  vpc_id         = aws_vpc.this.id
+  subnet_id      = module.public_subnets[0].this.id
+  peering_routes = local.peering_routes
 }
 
 # Subnets
@@ -95,75 +184,15 @@ module "private_subnets" {
   route_table_ids   = [module.nat_gateway[0].route_table_id]
 }
 
-# Routing
-
-resource "aws_route_table" "main" {
-  vpc_id = aws_vpc.this.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.this.id
-  }
-  route {
-    ipv6_cidr_block = "::/0"
-    gateway_id      = aws_internet_gateway.this.id
-  }
-  dynamic "route" {
-    for_each = var.network_interface_routes
-    content {
-      cidr_block           = route.value.cidr_block
-      network_interface_id = route.value.network_interface_id
-    }
-  }
-  dynamic "route" {
-    for_each = var.gateway_routes
-    content {
-      cidr_block = route.value.cidr_block
-      gateway_id = route.value.gateway_id
-    }
-  }
-  dynamic "route" {
-    for_each = local.peering_routes
-    content {
-      cidr_block                = route.value["cidr_block"]
-      vpc_peering_connection_id = route.value["connection_id"]
-    }
-  }
-  lifecycle {
-    ignore_changes = [
-      tags.business_unit,
-      tags.product,
-      tags.env,
-      tags_all
-    ]
-  }
-}
-
-resource "aws_main_route_table_association" "public" {
-  vpc_id         = aws_vpc.this.id
-  route_table_id = aws_route_table.main.id
-}
-
-# Internet gateways
-
-resource "aws_internet_gateway" "this" {
-  vpc_id = aws_vpc.this.id
-  lifecycle {
-    ignore_changes = [
-      tags.business_unit,
-      tags.product,
-      tags.env,
-      tags_all
-    ]
-  }
-}
-
-module "nat_gateway" {
-  source         = "ptonini/networking-nat-gateway/aws"
-  version        = "~> 1.1.0"
-  count          = var.private_subnets ? 1 : 0
-  vpc_id         = aws_vpc.this.id
-  subnet_id      = module.public_subnets[0].this.id
-  peering_routes = local.peering_routes
+module "isolated_subnets" {
+  source            = "ptonini/networking-subnet/aws"
+  version           = "~> 1.0.0"
+  count             = var.isolated_subnets ? local.zone_count : 0
+  name              = "${var.name}-isolated${format("%04.0f", count.index + 1)}"
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index + (local.zone_count * 2))
+  availability_zone = var.zones[count.index]
+  route_table_ids   = [aws_route_table.isolated[0].id]
 }
 
 # Peering connections
@@ -188,17 +217,19 @@ resource "aws_vpc_endpoint" "this" {
   vpc_id            = aws_vpc.this.id
   service_name      = each.value.service_name
   vpc_endpoint_type = each.value.type
-  subnet_ids        = var.private_subnets ? [for s in module.private_subnets : s.this.id] : [for s in module.public_subnets : s.this.id]
-
+  subnet_ids        = [for s in concat(module.private_subnets, module.isolated_subnets, module.public_subnets) : s.this.id]
 }
 
 # Network flow logs
 
-module "bucket" {
+module "log_bucket" {
   source  = "ptonini/s3-bucket/aws"
-  version = "~> 2.0.0"
-  count   = var.flow_logs_bucket_name == null ? 0 : 1
-  name    = var.flow_logs_bucket_name
+  version = "~> 2.2.0"
+  count   = var.flow_logs.bucket_name == null ? 0 : 1
+  name    = var.flow_logs.bucket_name
+  server_side_encryption = {
+    kms_master_key_id = var.flow_logs.bucket_kms_key_id
+  }
   bucket_policy_statements = [
     {
       Sid    = "AWSLogDeliveryWrite"
@@ -207,14 +238,14 @@ module "bucket" {
         Service = "delivery.logs.amazonaws.com"
       }
       Action   = "s3:PutObject"
-      Resource = "arn:aws:s3:::${var.flow_logs_bucket_name}/AWSLogs/${var.account_id}/*"
+      Resource = "arn:aws:s3:::${var.flow_logs.bucket_name}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
       Condition = {
         StringEquals = {
           "s3:x-amz-acl"      = "bucket-owner-full-control"
-          "aws:SourceAccount" = var.account_id
+          "aws:SourceAccount" = data.aws_caller_identity.current.account_id
         }
         ArnLike = {
-          "aws:SourceArn" = "arn:aws:logs:${var.region}:${var.account_id}:*"
+          "aws:SourceArn" = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
         }
       }
     },
@@ -228,13 +259,13 @@ module "bucket" {
         "s3:GetBucketAcl",
         "s3:ListBucket"
       ]
-      Resource = "arn:aws:s3:::${var.flow_logs_bucket_name}"
+      Resource = "arn:aws:s3:::${var.flow_logs.bucket_name}"
       Condition = {
         StringEquals = {
-          "aws:SourceAccount" = var.account_id
+          "aws:SourceAccount" = data.aws_caller_identity.current.account_id
         },
         ArnLike = {
-          "aws:SourceArn" = "arn:aws:logs:${var.region}:${var.account_id}:*"
+          "aws:SourceArn" = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
         }
       }
     }
@@ -242,13 +273,14 @@ module "bucket" {
 }
 
 resource "aws_flow_log" "this" {
-  count                = var.flow_logs_bucket_name == null ? 0 : 1
-  log_destination      = module.bucket[0].this.arn
-  log_destination_type = "s3"
-  traffic_type         = "ALL"
+  count                = var.flow_logs == null ? 0 : 1
+  log_destination      = coalesce(var.flow_logs.log_destination, module.log_bucket[0].this.arn)
+  log_destination_type = var.flow_logs.log_destination_type
+  traffic_type         = var.flow_logs.traffic_type
   vpc_id               = aws_vpc.this.id
+
   destination_options {
-    file_format        = "parquet"
-    per_hour_partition = true
+    file_format        = var.flow_logs.destination_options.file_format
+    per_hour_partition = var.flow_logs.destination_options.per_hour_partition
   }
 }
