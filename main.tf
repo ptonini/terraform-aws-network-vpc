@@ -25,6 +25,7 @@ resource "aws_vpc" "this" {
   tags = {
     Name = var.name
   }
+
   lifecycle {
     ignore_changes = [
       tags["business_unit"],
@@ -37,6 +38,7 @@ resource "aws_vpc" "this" {
 
 resource "aws_default_security_group" "this" {
   vpc_id = aws_vpc.this.id
+
   dynamic "ingress" {
     for_each = var.default_security_group.ingress_rules
     content {
@@ -50,6 +52,7 @@ resource "aws_default_security_group" "this" {
       self             = ingress.value.self
     }
   }
+
   dynamic "egress" {
     for_each = var.default_security_group.egress_rules
     content {
@@ -63,6 +66,7 @@ resource "aws_default_security_group" "this" {
       self             = egress.value.self
     }
   }
+
   lifecycle {
     ignore_changes = [
       tags["business_unit"],
@@ -128,7 +132,6 @@ resource "aws_main_route_table_association" "public" {
 }
 
 resource "aws_route_table" "isolated" {
-  count  = var.isolated_subnets ? 1 : 0
   vpc_id = aws_vpc.this.id
 
   route {
@@ -193,7 +196,7 @@ module "isolated_subnets" {
   vpc_id            = aws_vpc.this.id
   cidr_block        = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index + (local.zone_count * 2))
   availability_zone = var.zones[count.index]
-  route_table_ids   = [aws_route_table.isolated[0].id]
+  route_table_ids   = [aws_route_table.isolated.id]
 }
 
 # Peering connections
@@ -222,7 +225,7 @@ resource "aws_vpc_endpoint" "this" {
   policy              = each.value.policy
   private_dns_enabled = each.value.type == "Interface" ? each.value.private_dns_enabled : null
   security_group_ids  = each.value.type == "Interface" ? concat(each.value.security_group_ids, [aws_default_security_group.this.id]) : null
-  subnet_ids          = each.value.type == "Interface" ? concat(module.private_subnets[*].this.id, module.isolated_subnets[*].this.id, module.public_subnets[*].this.id) : null
+  subnet_ids          = each.value.type == "Interface" ? module.public_subnets[*].this.id : null
   route_table_ids     = each.value.type == "Gateway" ? compact([aws_route_table.main.id, one(aws_route_table.isolated[*].id), one(module.nat_gateway[*].route_table_id)]) : null
 
   lifecycle {

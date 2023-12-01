@@ -8,6 +8,10 @@ variable "zones" {
 
 variable "subnet_newbits" {}
 
+variable "nat_gateway" {
+  default = false
+}
+
 variable "private_subnets" {
   default = false
 }
@@ -89,7 +93,7 @@ variable "vpc_endpoints" {
     auto_accept         = optional(bool, true)
     policy              = optional(string)
     private_dns_enabled = optional(bool)
-    security_group_ids  = optional(list(string))
+    security_group_ids  = optional(list(string), [])
   }))
   default = {}
 }
