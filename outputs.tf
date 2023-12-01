@@ -7,15 +7,15 @@ output "default_security_group_id" {
 }
 
 output "public_subnet_ids" {
-  value = [for s in module.public_subnets : s.this.id]
+  value = module.public_subnets[*].this.id
 }
 
 output "private_subnet_ids" {
-  value = [for s in module.private_subnets : s.this.id]
+  value = module.private_subnets[*].this.id
 }
 
 output "isolated_subnet_ids" {
-  value = [for s in module.isolated_subnets : s.this.id]
+  value = module.isolated_subnets[*].this.id
 }
 
 output "peering_requests" {
