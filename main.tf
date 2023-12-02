@@ -116,6 +116,10 @@ resource "aws_route_table" "main" {
     }
   }
 
+  tags = {
+    Name = "${var.name}-main"
+  }
+
   lifecycle {
     ignore_changes = [
       tags["business_unit"],
@@ -133,10 +137,18 @@ resource "aws_main_route_table_association" "public" {
 
 resource "aws_route_table" "isolated" {
   vpc_id = aws_vpc.this.id
+  tags = {
+    Name = "${var.name}-isolated"
+  }
 
-  route {
-    cidr_block = var.ipv4_cidr
-    gateway_id = "local"
+  lifecycle {
+    ignore_changes = [
+      route,
+      tags["business_unit"],
+      tags["product"],
+      tags["env"],
+      tags_all
+    ]
   }
 }
 
