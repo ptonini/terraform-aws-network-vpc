@@ -156,6 +156,9 @@ resource "aws_route_table" "isolated" {
 
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
+  tags = {
+    Name = "${var.name}-gtw"
+  }
 
   lifecycle {
     ignore_changes = [
@@ -169,8 +172,9 @@ resource "aws_internet_gateway" "this" {
 
 module "nat_gateway" {
   source         = "ptonini/networking-nat-gateway/aws"
-  version        = "~> 1.1.0"
+  version        = "~> 1.2.1"
   count          = var.private_subnets ? 1 : 0
+  name           = "${var.name}-nat-gtw"
   vpc_id         = aws_vpc.this.id
   subnet_id      = module.public_subnets[0].this.id
   peering_routes = local.peering_routes

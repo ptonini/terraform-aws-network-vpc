@@ -92,7 +92,7 @@ variable "vpc_endpoints" {
     type                = string
     auto_accept         = optional(bool, true)
     policy              = optional(string)
-    private_dns_enabled = optional(bool)
+    private_dns_enabled = optional(bool, true)
     security_group_ids  = optional(list(string), [])
   }))
   default = {}
