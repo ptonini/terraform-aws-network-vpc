@@ -79,7 +79,7 @@ resource "aws_default_security_group" "this" {
 
 # Route tables
 
-resource "aws_route_table" "default" {
+resource "aws_route_table" "main" {
   vpc_id = aws_vpc.this.id
 
   route {
@@ -130,9 +130,9 @@ resource "aws_route_table" "default" {
   }
 }
 
-resource "aws_main_route_table_association" "public" {
+resource "aws_main_route_table_association" "this" {
   vpc_id         = aws_vpc.this.id
-  route_table_id = aws_route_table.default.id
+  route_table_id = aws_route_table.main.id
 }
 
 resource "aws_route_table" "isolated" {

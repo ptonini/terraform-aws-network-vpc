@@ -19,7 +19,7 @@ output "isolated_subnet_ids" {
 }
 
 output "default_route_table_id" {
-  value = aws_route_table.default.id
+  value = aws_route_table.main.id
 }
 
 output "nat_route_table_id" {
