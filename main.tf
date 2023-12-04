@@ -201,7 +201,7 @@ module "private_subnets" {
   vpc_id            = aws_vpc.this.id
   cidr_block        = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index + local.zone_count)
   availability_zone = var.zones[count.index]
-  route_table_ids   = [module.nat_gateway[0].route_table_id]
+  route_table_ids   = module.nat_gateway[*].route_table_id
 }
 
 module "isolated_subnets" {
@@ -240,9 +240,9 @@ resource "aws_vpc_endpoint" "this" {
   auto_accept         = each.value.auto_accept
   policy              = each.value.policy
   private_dns_enabled = each.value.type == "Interface" ? each.value.private_dns_enabled : null
-  security_group_ids  = each.value.type == "Interface" ? concat(each.value.security_group_ids, [aws_default_security_group.this.id]) : null
-  subnet_ids          = each.value.type == "Interface" ? module.public_subnets[*].this.id : null
-  route_table_ids     = each.value.type == "Gateway" ? compact([aws_route_table.main.id, one(aws_route_table.isolated[*].id), one(module.nat_gateway[*].route_table_id)]) : null
+  security_group_ids  = each.value.type == "Interface" ? each.value.security_group_ids : null
+  subnet_ids          = each.value.type == "Interface" ? var.isolated_subnets ? module.isolated_subnets[*].this.id : module.private_subnets[*].this.id : null
+  route_table_ids     = each.value.type == "Gateway" ? compact([one(aws_route_table.isolated[*].id), one(module.nat_gateway[*].route_table_id)]) : null
 
   lifecycle {
     ignore_changes = [
