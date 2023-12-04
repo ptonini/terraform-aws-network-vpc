@@ -86,18 +86,6 @@ variable "peering_acceptors" {
   }))
 }
 
-variable "vpc_endpoints" {
-  type = map(object({
-    service_name        = string
-    type                = string
-    auto_accept         = optional(bool, true)
-    policy              = optional(string)
-    private_dns_enabled = optional(bool, true)
-    security_group_ids  = optional(list(string), [])
-  }))
-  default = {}
-}
-
 variable "flow_logs" {
   type = object({
     bucket_name          = optional(string)

@@ -79,7 +79,7 @@ resource "aws_default_security_group" "this" {
 
 # Route tables
 
-resource "aws_route_table" "main" {
+resource "aws_route_table" "default" {
   vpc_id = aws_vpc.this.id
 
   route {
@@ -132,7 +132,7 @@ resource "aws_route_table" "main" {
 
 resource "aws_main_route_table_association" "public" {
   vpc_id         = aws_vpc.this.id
-  route_table_id = aws_route_table.main.id
+  route_table_id = aws_route_table.default.id
 }
 
 resource "aws_route_table" "isolated" {
@@ -228,30 +228,6 @@ resource "aws_vpc_peering_connection_accepter" "this" {
   for_each                  = var.peering_acceptors
   vpc_peering_connection_id = each.value.peering_request.id
   auto_accept               = true
-}
-
-# VPC Endpoints
-
-resource "aws_vpc_endpoint" "this" {
-  for_each            = var.vpc_endpoints
-  vpc_id              = aws_vpc.this.id
-  service_name        = each.value.service_name
-  vpc_endpoint_type   = each.value.type
-  auto_accept         = each.value.auto_accept
-  policy              = each.value.policy
-  private_dns_enabled = each.value.type == "Interface" ? each.value.private_dns_enabled : null
-  security_group_ids  = each.value.type == "Interface" ? each.value.security_group_ids : null
-  subnet_ids          = each.value.type == "Interface" ? var.isolated_subnets ? module.isolated_subnets[*].this.id : module.private_subnets[*].this.id : null
-  route_table_ids     = each.value.type == "Gateway" ? compact([one(aws_route_table.isolated[*].id), one(module.nat_gateway[*].route_table_id)]) : null
-
-  lifecycle {
-    ignore_changes = [
-      tags["business_unit"],
-      tags["product"],
-      tags["env"],
-      tags_all
-    ]
-  }
 }
 
 # Network flow logs
