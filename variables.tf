@@ -1,22 +1,12 @@
 variable "name" {}
 
-variable "ipv4_cidr" {}
+variable "cidr_block" {}
 
 variable "zones" {
   type = list(string)
 }
 
-variable "subnet_newbits" {}
-
 variable "nat_gateway" {
-  default = false
-}
-
-variable "private_subnets" {
-  default = false
-}
-
-variable "isolated_subnets" {
   default = false
 }
 

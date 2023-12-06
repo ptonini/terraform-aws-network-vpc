@@ -17,7 +17,7 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 resource "aws_vpc" "this" {
-  cidr_block                       = var.ipv4_cidr
+  cidr_block                       = var.cidr_block
   assign_generated_ipv6_cidr_block = true
   enable_dns_hostnames             = true
   enable_dns_support               = true
@@ -77,7 +77,34 @@ resource "aws_default_security_group" "this" {
   }
 }
 
-# Route tables
+resource "aws_internet_gateway" "this" {
+  vpc_id = aws_vpc.this.id
+  tags = {
+    Name = "${var.name}-gtw"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      tags["business_unit"],
+      tags["product"],
+      tags["env"],
+      tags_all
+    ]
+  }
+}
+
+resource "aws_vpc_peering_connection" "this" {
+  for_each      = var.peering_requests
+  peer_owner_id = each.value.account_id
+  peer_vpc_id   = each.value.vpc.id
+  vpc_id        = aws_vpc.this.id
+}
+
+resource "aws_vpc_peering_connection_accepter" "this" {
+  for_each                  = var.peering_acceptors
+  vpc_peering_connection_id = each.value.peering_request.id
+  auto_accept               = true
+}
 
 resource "aws_route_table" "main" {
   vpc_id = aws_vpc.this.id
@@ -130,11 +157,6 @@ resource "aws_route_table" "main" {
   }
 }
 
-resource "aws_main_route_table_association" "this" {
-  vpc_id         = aws_vpc.this.id
-  route_table_id = aws_route_table.main.id
-}
-
 resource "aws_route_table" "isolated" {
   vpc_id = aws_vpc.this.id
   tags = {
@@ -152,85 +174,10 @@ resource "aws_route_table" "isolated" {
   }
 }
 
-# Gateways
-
-resource "aws_internet_gateway" "this" {
-  vpc_id = aws_vpc.this.id
-  tags = {
-    Name = "${var.name}-gtw"
-  }
-
-  lifecycle {
-    ignore_changes = [
-      tags["business_unit"],
-      tags["product"],
-      tags["env"],
-      tags_all
-    ]
-  }
-}
-
-module "nat_gateway" {
-  source         = "ptonini/networking-nat-gateway/aws"
-  version        = "~> 1.2.1"
-  count          = var.private_subnets ? 1 : 0
-  name           = "${var.name}-nat-gtw"
+resource "aws_main_route_table_association" "this" {
   vpc_id         = aws_vpc.this.id
-  subnet_id      = module.public_subnets[0].this.id
-  peering_routes = local.peering_routes
+  route_table_id = aws_route_table.main.id
 }
-
-# Subnets
-
-module "public_subnets" {
-  source                  = "ptonini/networking-subnet/aws"
-  version                 = "~> 1.0.0"
-  count                   = local.zone_count
-  name                    = "${var.name}-public${format("%04.0f", count.index + 1)}"
-  vpc_id                  = aws_vpc.this.id
-  cidr_block              = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index)
-  availability_zone       = var.zones[count.index]
-  map_public_ip_on_launch = true
-}
-
-module "private_subnets" {
-  source            = "ptonini/networking-subnet/aws"
-  version           = "~> 1.0.0"
-  count             = var.private_subnets ? local.zone_count : 0
-  name              = "${var.name}-private${format("%04.0f", count.index + 1)}"
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index + local.zone_count)
-  availability_zone = var.zones[count.index]
-  route_table_ids   = module.nat_gateway[*].route_table_id
-}
-
-module "isolated_subnets" {
-  source            = "ptonini/networking-subnet/aws"
-  version           = "~> 1.0.0"
-  count             = var.isolated_subnets ? local.zone_count : 0
-  name              = "${var.name}-isolated${format("%04.0f", count.index + 1)}"
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = cidrsubnet(var.ipv4_cidr, var.subnet_newbits, count.index + (local.zone_count * 2))
-  availability_zone = var.zones[count.index]
-  route_table_ids   = [aws_route_table.isolated.id]
-}
-
-# Peering connections
-
-resource "aws_vpc_peering_connection" "this" {
-  for_each      = var.peering_requests
-  peer_owner_id = each.value.account_id
-  peer_vpc_id   = each.value.vpc.id
-  vpc_id        = aws_vpc.this.id
-}
-
-resource "aws_vpc_peering_connection_accepter" "this" {
-  for_each                  = var.peering_acceptors
-  vpc_peering_connection_id = each.value.peering_request.id
-  auto_accept               = true
-}
-
-# Network flow logs
 
 module "log_bucket" {
   source  = "ptonini/s3-bucket/aws"
