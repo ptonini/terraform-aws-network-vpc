@@ -1,15 +1,5 @@
 locals {
   zone_count = length(var.zones)
-  peering_routes = merge(
-    { for k, v in var.peering_requests : "${k}_request" => {
-      cidr_block    = v.vpc.cidr_block
-      connection_id = aws_vpc_peering_connection.this[k].id
-    } },
-    { for k, v in var.peering_acceptors : "${k}_acceptor" => {
-      cidr_block    = v.vpc.cidr_block
-      connection_id = v.peering_request.id
-    } }
-  )
 }
 
 data "aws_caller_identity" "current" {}
@@ -106,77 +96,19 @@ resource "aws_vpc_peering_connection_accepter" "this" {
   auto_accept               = true
 }
 
-resource "aws_route_table" "main" {
-  vpc_id = aws_vpc.this.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.this.id
-  }
-
-  route {
-    ipv6_cidr_block = "::/0"
-    gateway_id      = aws_internet_gateway.this.id
-  }
-
-  dynamic "route" {
-    for_each = var.network_interface_routes
-    content {
-      cidr_block           = route.value.cidr_block
-      network_interface_id = route.value.network_interface_id
-    }
-  }
-
-  dynamic "route" {
-    for_each = var.gateway_routes
-    content {
-      cidr_block = route.value.cidr_block
-      gateway_id = route.value.gateway_id
-    }
-  }
-
-  dynamic "route" {
-    for_each = local.peering_routes
-    content {
-      cidr_block                = route.value["cidr_block"]
-      vpc_peering_connection_id = route.value["connection_id"]
-    }
-  }
-
-  tags = {
-    Name = "${var.name}-main"
-  }
-
-  lifecycle {
-    ignore_changes = [
-      tags["business_unit"],
-      tags["product"],
-      tags["env"],
-      tags_all
-    ]
-  }
-}
-
-resource "aws_route_table" "isolated" {
-  vpc_id = aws_vpc.this.id
-  tags = {
-    Name = "${var.name}-isolated"
-  }
-
-  lifecycle {
-    ignore_changes = [
-      route,
-      tags["business_unit"],
-      tags["product"],
-      tags["env"],
-      tags_all
-    ]
-  }
-}
-
-resource "aws_main_route_table_association" "this" {
-  vpc_id         = aws_vpc.this.id
-  route_table_id = aws_route_table.main.id
+module "main_route_table" {
+  source           = "ptonini/networking-route-table/aws"
+  version          = "~> 1.1.0"
+  name             = "${var.name}-main"
+  vpc              = aws_vpc.this
+  main_route_table = true
+  routes = merge(
+    { public = { cidr_block = "0.0.0.0/0", gateway_id = aws_internet_gateway.this.id } },
+    { public-ivp6 = { ipv6_cidr_block = "::/0", gateway_id = aws_internet_gateway.this.id } },
+    { for k, v in var.peering_requests : "${k}_request" => { cidr_block = v.vpc.cidr_block, vpc_peering_connection_id = aws_vpc_peering_connection.this[k].id } },
+    { for k, v in var.peering_acceptors : "${k}_acceptor" => { cidr_block = v.vpc.cidr_block, vpc_peering_connection_id = v.peering_request.id, } },
+    var.main_table_routes
+  )
 }
 
 module "log_bucket" {

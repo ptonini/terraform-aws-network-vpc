@@ -36,19 +36,12 @@ variable "default_security_group" {
   default = {}
 }
 
-variable "network_interface_routes" {
+variable "main_table_routes" {
   default = {}
   type = map(object({
     cidr_block           = string
     network_interface_id = string
-  }))
-}
-
-variable "gateway_routes" {
-  default = {}
-  type = map(object({
-    cidr_block = string
-    gateway_id = string
+    gateway_id           = string
   }))
 }
 

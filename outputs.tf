@@ -6,12 +6,8 @@ output "default_security_group_id" {
   value = aws_default_security_group.this.id
 }
 
-output "default_route_table_id" {
-  value = aws_route_table.main.id
-}
-
-output "isolated_route_table_id" {
-  value = aws_route_table.isolated.id
+output "main_route_table_id" {
+  value = module.main_route_table.this.id
 }
 
 output "peering_requests" {
