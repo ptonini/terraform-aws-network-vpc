@@ -40,8 +40,8 @@ variable "main_table_routes" {
   default = {}
   type = map(object({
     cidr_block           = string
-    network_interface_id = string
-    gateway_id           = string
+    network_interface_id = optional(string)
+    gateway_id           = optional(string)
   }))
 }
 
